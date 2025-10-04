@@ -1,6 +1,6 @@
 # Wave Image Generator
 
-![Alt text](images_output\image.png "image")
+![Alt text](https://github.com/Davvv24/Wave-Image-Generator/blob/main/images_output/image.png?raw=true "image")
 
 A simple Python module to generate images of interfering waves.
 
