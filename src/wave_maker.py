@@ -4,6 +4,7 @@ import numpy as np
 from dataclasses import dataclass
 
 from progress_bar import ProgressBar
+from colour_spaces import ColourSpace
 from config import *
 
 
@@ -19,7 +20,7 @@ class WaveSource(object):
 def load_from_csv(path:str) -> list[WaveSource]:
     text = open(path,'r').read()                                            # Open the file in read mode and save to a text string
     source_strings = [source for source in text.split('\n') if source.startswith('#')==False]  
-    parameters = [[float(val) for val in source.split(',')] for source in source_strings]   # Split I-V strings into float value pairs
+    parameters = [[float(val) for val in source.split(',')] for source in source_strings]   
     sources = [WaveSource(*parameters[i]) for i in range(len(source_strings))]
     return sources
 
@@ -31,35 +32,37 @@ class WaveImageGenerator(object):
     pen: Pen
     progress_bar: ProgressBar
     legend_colour: str 
+    colour_tool: ColourSpace
 
     def __init__(self) -> None:
         self.br = Brush("#FFFF00")
         self.pen = Pen("#FF220022")
         self.progress_bar = ProgressBar(pr_bar_char="*", start_text="Loading: ")
-        self.legend_colour = "#23617E"
+        self.legend_colour = "#FFFFFF"
+        self.colour_tool = ColourSpace.sRGB()
 
 
     def __call__(self, sources:list[WaveSource], output_path:str, legend=True, *args, **kwds) -> None:            
-        img = Image.new("RGBA",(self.img_width,self.img_height),"black")
+        img = Image.new("RGBA",(self.img_width, self.img_height),"black")
         pixels = img.load()
         draw_tool = Draw(img)
         wave_amplitudes = self.calculate_intensities(sources)
+        main_wavelength = np.average([source.wavelength for source in sources])
 
-        min_amplitude = np.min(wave_amplitudes)
-        max_amplitude = np.max(wave_amplitudes)
+        min_amplitude, max_amplitude = np.min(wave_amplitudes), np.max(wave_amplitudes) 
 
         # Store values to image and convert according to colour_space
         for i in range(self.img_width):
             for j in range(self.img_height):
                 amp = wave_amplitudes[j][i]
                 # amp = lambda x: int(128 * self.sigmoid(amp*x))   
-                pixels[i,j] = self.amplitude_to_rgb(amp, min_amplitude, max_amplitude)          # store colour to image pixels  #! change this
+                pixels[i,j] = tuple(self.amplitude_to_rgb(amp, min_amplitude, max_amplitude, main_wavelength))     # store colour to image pixels  #! change this
 
             self.progress_bar.set_percent(100.0*i/self.img_width)
         self.progress_bar.set_percent(100.0)
         # screen_values = wave_amplitudes[:,-1] # Gets values of last column of pixel. Can be used to obtain intensity at far distance
 
-        self.legend(img, draw_tool)
+        self.legend(img, draw_tool, reference_wavelength=main_wavelength)
         img.save(output_path)
         print(f"\nWave image successfully stored at: {output_path}")
         
@@ -71,9 +74,12 @@ class WaveImageGenerator(object):
     def sigmoid(self, x:float) -> float: 
         return 1/(1+np.exp(-x)) 
     
-    def amplitude_to_rgb(self, amp, min_amplitude, max_amplitude)->tuple: #! Currently set to only produce white images
-        brightness = int(256 * (amp-min_amplitude)/(max_amplitude-min_amplitude))
-        return (brightness, brightness, brightness)
+    def amplitude_to_rgb(self, amp, min_amplitude, max_amplitude, wavelength) -> np.ndarray: #! Currently set to only produce white images. Also partially inaccurate as brightness ~ I^2
+        colour = self.colour_tool.wavelength_xyz_conv(wavelength)
+        brightness_value =  (amp-min_amplitude)/(max_amplitude-min_amplitude) # z value from 0-1
+        colour[0] = brightness_value
+        rgb_colour = self.colour_tool.xyz_rgb_conv(colour)
+        return self.colour_tool.floatvec_intvec_conv(rgb_colour)
 
     def calculate_intensities(self, sources:list[WaveSource]) -> np.ndarray:
         wave_amplitudes = np.ndarray(shape=(self.img_height,self.img_width))
@@ -97,11 +103,11 @@ class WaveImageGenerator(object):
     def set_legend_colour(self, colour:str) -> None:
         self.legend_colour = colour
 
-    def legend(self, img:Image, draw_tool:Draw, reference_wavelength:float=400) -> None:
+    def legend(self, img:Image, draw_tool:Draw, reference_wavelength:float=400, x_offset=100, y_offset=30) -> None:
         K = reference_wavelength/self.nm_pixel_scale # n. of pixels to cover a full wavelength 
-        font = Font(self.legend_colour, "arial.ttf", size=20)
+        font = Font(self.legend_colour, "arial.ttf", size=14)
         text = f"Scale: {self.nm_pixel_scale}nm/pixel\nWavelength: {reference_wavelength}nm"
-        x_pos, y_pos= self.img_width-200, self.img_height-50
+        x_pos, y_pos= self.img_width-x_offset, self.img_height-y_offset
         bbox = draw_tool.textbbox((0, 0), text, font) # Gets size of text before it's placed
         pen = Pen(self.legend_colour)
         w,h = bbox[2]-bbox[0], bbox[3]-bbox[1]
@@ -113,9 +119,9 @@ class WaveImageGenerator(object):
 
     
 if __name__=="__main__":
-    sources = [WaveSource(0, 0, 400, 1, 0, 0), WaveSource(0, 100, 400, 1, 0, 0)]
+    sources = [WaveSource(50, 300, 800, 1, 0, 0), WaveSource(50, 100, 700, 1, 0, 0)]
 
     image_generator = WaveImageGenerator()
     image_generator.resize(512,256)
-    image_generator(sources, r"C:\Users\rizzo\Code\VSC-Asus\University Code\Waves\images_output\img.png")
+    image_generator(sources, r"C:\Users\rizzo\Code\VSC-Asus\University Code\Waves Image Generator\images_output\img.png")
 

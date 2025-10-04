@@ -1,6 +1,7 @@
 # Project specific ignores
 ignore/*
 transparent_overlay.png
+temp.py
 
 
 # Byte-compiled / optimized / DLL files
