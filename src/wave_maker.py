@@ -25,6 +25,28 @@ def load_from_csv(path:str) -> list[WaveSource]:
     return sources
 
 class WaveImageGenerator(object):
+    """
+    WaveImageGenerator
+    ============
+    Generator class used to create images of waves interfering. The class relies on lists of `WaveSource` objects to function.
+
+    It contains attributes which determine the size of the final image, the tools used to draw the picture, and a ColourSpace object, as well 
+    as other metadata.
+    
+    Args
+    ------
+    - None
+
+    Usage
+    ------
+    Objects of this class can be called on a given list of `WaveSource` objects and a file path.
+    >>> sources = [WaveSource(50, 300, 800, 1, 0, 0), WaveSource(50, 100, 700, 1, 0, 0)]
+    >>> image_generator = WaveImageGenerator()
+    >>> image_generator(sources, \"images_output\\img.png\")
+    Loading: [*************************]
+    Wave image successfully stored at: images_output\\img.png
+    """
+    
     img_height: int = 256
     img_width: int = 512
     nm_pixel_scale: float = 10.0        # image nanometers per pixel ratio
@@ -46,7 +68,7 @@ class WaveImageGenerator(object):
         img = Image.new("RGBA",(self.img_width, self.img_height),"black")
         pixels = img.load()
         draw_tool = Draw(img)
-        wave_amplitudes = self.calculate_intensities(sources)
+        wave_amplitudes = self.calculate_amplitudes(sources)
         main_wavelength = np.average([source.wavelength for source in sources])
 
         min_amplitude, max_amplitude = np.min(wave_amplitudes), np.max(wave_amplitudes) 
@@ -68,6 +90,7 @@ class WaveImageGenerator(object):
         
 
     def resize(self, img_width:int, img_height:int) -> None:
+        """Change the size of the output image in pixels."""
         self.img_width = img_width
         self.img_height = img_height
     
@@ -75,13 +98,15 @@ class WaveImageGenerator(object):
         return 1/(1+np.exp(-x)) 
     
     def amplitude_to_rgb(self, amp, min_amplitude, max_amplitude, wavelength) -> np.ndarray: #! Currently set to only produce white images. Also partially inaccurate as brightness ~ I^2
-        colour = self.colour_tool.wavelength_xyz_conv(wavelength)
+        """Returns the corresponding rgb vector to a specific amplitude."""
+        colour = self.colour_tool.wavelength_xyz_conv(wavelength) # TODO: add fast option to precalculate grid of values and interpolate
         brightness_value =  (amp-min_amplitude)/(max_amplitude-min_amplitude) # z value from 0-1
         colour[0] = brightness_value
         rgb_colour = self.colour_tool.xyz_rgb_conv(colour)
         return self.colour_tool.floatvec_intvec_conv(rgb_colour)
 
-    def calculate_intensities(self, sources:list[WaveSource]) -> np.ndarray:
+    def calculate_amplitudes(self, sources:list[WaveSource]) -> np.ndarray:
+        """Calculates the amplitudes for each position in the output grid (amplitude value for each pixel in final image)."""
         wave_amplitudes = np.ndarray(shape=(self.img_height,self.img_width))
 
         # Calculate total displacement for each pixel 
@@ -101,9 +126,18 @@ class WaveImageGenerator(object):
         return wave_amplitudes
 
     def set_legend_colour(self, colour:str) -> None:
+        """Changes the colour of the text in the legend."""
         self.legend_colour = colour
 
     def legend(self, img:Image, draw_tool:Draw, reference_wavelength:float=400, x_offset=100, y_offset=30) -> None:
+        """Displays a legend on an `img` representing the given values.
+        
+        Args
+        ----------------------------
+        - `c1` and `c2` are always used to denote Celestial objects.
+        - The first frame in the simulation data, and the first orbit of a planet should usually be discarded for gathering results
+        - The actual "timestep" is given by `self.timescale`/`self.fps`
+        """
         K = reference_wavelength/self.nm_pixel_scale # n. of pixels to cover a full wavelength 
         font = Font(self.legend_colour, "arial.ttf", size=14)
         text = f"Scale: {self.nm_pixel_scale}nm/pixel\nWavelength: {reference_wavelength}nm"
@@ -119,9 +153,9 @@ class WaveImageGenerator(object):
 
     
 if __name__=="__main__":
+    YOUR_OUTPUT_PATH = "path goes here"
     sources = [WaveSource(50, 300, 800, 1, 0, 0), WaveSource(50, 100, 700, 1, 0, 0)]
-
     image_generator = WaveImageGenerator()
     image_generator.resize(512,256)
-    image_generator(sources, r"C:\Users\rizzo\Code\VSC-Asus\University Code\Waves Image Generator\images_output\img.png")
+    image_generator(sources, YOUR_OUTPUT_PATH)
 
