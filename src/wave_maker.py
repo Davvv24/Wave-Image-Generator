@@ -10,6 +10,21 @@ from config import *
 
 @dataclass
 class WaveSource(object):
+    """
+    WaveSource
+    ============
+    Dataclass used to store all essential information about a wave source. Objects of this class are passed as a list to `WaveImageGenerator` objects.
+
+    Args
+    ------
+    x - x position in the image (0 for left of the image)
+    y - y position in the image (0 for top of the image)
+    wavelength - wavelength of light that the source will emit (directly corresponds to a colour)
+    amplitude - relative amplitude. The final brightness is scaled according to the luminosity ratio between different sources.
+    time_phase - time offset (not currently used so set to 0)
+    space_phase - time offset (not currently used so set to 0)
+    
+    """
     x: float
     y: float
     wavelength: float
@@ -18,6 +33,11 @@ class WaveSource(object):
     space_phase: float
     
 def load_from_csv(path:str) -> list[WaveSource]:
+    """Loads a list of `WaveSource` objects from a CSV file given a file path `fp` to the given data.
+    
+    The CSV file should be formatted to contain all the positional values of the `WaveSource` class as columns. This should be without a header row.
+    '#' symbols may be used to add comments in the CSV files.
+    """
     text = open(path,'r').read()                                            # Open the file in read mode and save to a text string
     source_strings = [source for source in text.split('\n') if source.startswith('#')==False]  
     parameters = [[float(val) for val in source.split(',')] for source in source_strings]   
@@ -69,7 +89,8 @@ class WaveImageGenerator(object):
         pixels = img.load()
         draw_tool = Draw(img)
         wave_amplitudes = self.calculate_amplitudes(sources)
-        main_wavelength = np.average([source.wavelength for source in sources])
+        main_wavelength = np.average([source.wavelength for source in sources]) 
+        # TODO: allow sources of different wavelengths to additively produce any colour. Currently this assumes equal amplitude leading to a limited range of colours.
 
         min_amplitude, max_amplitude = np.min(wave_amplitudes), np.max(wave_amplitudes) 
 
